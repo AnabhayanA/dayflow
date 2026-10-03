@@ -1,0 +1,191 @@
+:root {
+  font-family: Arial, sans-serif;
+  color: #17242b;
+  background: #f4f7f7;
+  --navy: #071d2b;
+  --teal: #087f8c;
+  --line: #d7e2e4;
+  --muted: #66777d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f7f7;
+}
+
+.topbar {
+  min-height: 68px;
+  padding: 0 6%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--navy);
+}
+
+.brand {
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+nav {
+  display: flex;
+  gap: 24px;
+}
+
+nav a {
+  color: #c6d8dc;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+nav a:hover {
+  color: white;
+}
+
+.page {
+  width: min(1100px, 90%);
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+.hero {
+  max-width: 760px;
+  margin-bottom: 34px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(38px, 6vw, 64px);
+  line-height: 1.05;
+  color: var(--navy);
+}
+
+h2 {
+  margin-top: 0;
+  color: var(--navy);
+}
+
+.lead {
+  max-width: 680px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.card {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+
+.card p,
+.card li {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+form {
+  display: grid;
+  gap: 10px;
+}
+
+label {
+  margin-top: 5px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #c9d6d9;
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 3px solid #d9eff1;
+  border-color: var(--teal);
+}
+
+button {
+  width: fit-content;
+  margin-top: 6px;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--teal);
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #066875;
+}
+
+.rule-form {
+  grid-template-columns: 1fr 180px auto;
+  align-items: end;
+}
+
+.rule-form label {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    align-items: flex-start;
+    gap: 16px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    flex-direction: column;
+  }
+
+  nav {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .page {
+    padding-top: 38px;
+  }
+
+  .grid,
+  .rule-form {
+    grid-template-columns: 1fr;
+  }
+}
