@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.models import PlanRequest, PlanResponse, MeetingRequest, MeetingResponse
+from backend.schema import PlanRequest, PlanResponse, MeetingRequest, MeetingResponse
 from backend.planner.scheduler import generate_schedule
 from backend.planner.meetings import propose_meetings
 
