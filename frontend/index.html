@@ -1,21 +1,70 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
-    <meta
-      name="description"
-      content="DayFlow helps you organize classes, work, tasks, and meetings."
-    />
-    <meta name="theme-color" content="#071d2b" />
-    <title>DayFlow</title>
-  </head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DayFlow personal AI secretary">
+  <title>DayFlow</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">DayFlow</a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/calendar">Calendar</a>
+      <a href="/tasks">Tasks</a>
+      <a href="/rules">Star Rules</a>
+    </nav>
+  </header>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">PERSONAL AI SECRETARY</p>
+      <h1>Manage the day that actually happens.</h1>
+      <p class="lead">Tell DayFlow what is going on. It protects your rules, finds realistic time, and helps reorganize the rest of your day.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Tell DayFlow what you need</h2>
+        <form method="post" action="/assistant">
+          <label for="message">What is going on?</label>
+          <textarea id="message" name="message" rows="5" placeholder="I need two hours to study before Friday." required></textarea>
+          <button type="submit">Ask DayFlow</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <h2>How DayFlow works</h2>
+        <ol>
+          <li>You tell DayFlow what changed or what needs to happen.</li>
+          <li>DayFlow checks your calendar and Star Rules.</li>
+          <li>It finds a realistic schedule.</li>
+          <li>You approve important changes.</li>
+        </ol>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STAR RULES</p>
+          <h2>Protect what matters</h2>
+        </div>
+      </div>
+      <p>Absolute rules cannot be violated. Preferences guide DayFlow whenever possible.</p>
+      <form class="rule-form" method="post" action="/rules">
+        <label for="rule">New rule</label>
+        <input id="rule" name="rule" type="text" placeholder="Never move my classes." required>
+        <label for="rule_type">Rule type</label>
+        <select id="rule_type" name="rule_type">
+          <option value="absolute">Absolute</option>
+          <option value="preference">Preference</option>
+        </select>
+        <button type="submit">Add Star Rule</button>
+      </form>
+    </section>
+  </main>
+</body>
 </html>
