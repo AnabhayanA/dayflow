@@ -5,7 +5,7 @@ from backend.planner.scheduler import generate_schedule
 from backend.planner.meetings import propose_meetings
 
 app = FastAPI(title="DayFlow API", version="0.4.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173","http://localhost:5173","http://127.0.0.1:5500","http://localhost:5500"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:3000","http://localhost:3000","http://127.0.0.1:5173","http://localhost:5173","http://127.0.0.1:5500","http://localhost:5500"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
 def root(): return {"message":"DayFlow API is running"}
