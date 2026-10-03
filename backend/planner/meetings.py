@@ -1,6 +1,6 @@
 from datetime import timedelta
 from typing import List
-from backend.models import MeetingRequest, MeetingOption
+from backend.schema import MeetingRequest, MeetingOption
 from backend.planner.scheduler import monday, free_windows, mins, clock
 
 def intersect(windows: List[List[tuple[int,int]]]) -> List[tuple[int,int]]:
