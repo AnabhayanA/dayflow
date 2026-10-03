@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 from typing import List, Tuple
-from backend.models import Task, FixedBlock, AvailabilityWindow, ScheduleBlock
+from backend.schema import Task, FixedBlock, AvailabilityWindow, ScheduleBlock
 
 PRIORITY = {"high": 3, "medium": 2, "low": 1}
 DAY_START, DAY_END, MAX_FOCUS, BREAK = 8 * 60, 21 * 60, 90, 15
