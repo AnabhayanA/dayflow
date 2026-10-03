@@ -1,5 +1,8 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+
+from fastapi import FastAPI, Form
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.planner.meetings import propose_meetings
 from backend.planner.scheduler import generate_schedule
@@ -12,25 +15,25 @@ from backend.schema import (
     PlanResponse,
 )
 
-app = FastAPI(title="DayFlow API", version="0.5.0")
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(title="DayFlow API", version="0.6.0")
+
+app.mount(
+    "/static",
+    StaticFiles(directory=FRONTEND_DIR),
+    name="static",
 )
 
 
-@app.get("/")
-def root():
-    return {"message": "DayFlow API is running"}
+def read_frontend_page() -> str:
+    return (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return read_frontend_page()
 
 
 @app.get("/api/health")
@@ -38,11 +41,68 @@ def health():
     return {
         "status": "online",
         "app": "DayFlow",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "planner": "online",
         "meetings": "online",
         "assistant": "online",
     }
+
+
+@app.post("/assistant", response_class=HTMLResponse)
+def assistant_form(message: str = Form(...)):
+    safe_message = message.strip()
+
+    return f"""
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>DayFlow</title>
+      <link rel="stylesheet" href="/static/style.css">
+    </head>
+    <body>
+      <main class="page">
+        <section class="card">
+          <p class="eyebrow">DAYFLOW ASSISTANT</p>
+          <h1>Got it.</h1>
+          <p>You told DayFlow: {safe_message}</p>
+          <p>The Gemini scheduling assistant will connect here next.</p>
+          <a href="/">Back to DayFlow</a>
+        </section>
+      </main>
+    </body>
+    </html>
+    """
+
+
+@app.post("/rules", response_class=HTMLResponse)
+def add_rule_form(
+    rule: str = Form(...),
+    rule_type: str = Form(...),
+):
+    return f"""
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>DayFlow</title>
+      <link rel="stylesheet" href="/static/style.css">
+    </head>
+    <body>
+      <main class="page">
+        <section class="card">
+          <p class="eyebrow">STAR RULE ADDED</p>
+          <h1>{rule}</h1>
+          <p>Type: {rule_type.title()}</p>
+          <p>Database persistence will be connected to this form next.</p>
+          <a href="/">Back to DayFlow</a>
+        </section>
+      </main>
+    </body>
+    </html>
+    """
 
 
 @app.post("/api/plan", response_model=PlanResponse)
@@ -77,41 +137,31 @@ def chat(request: ChatRequest):
     text = request.message.strip().lower()
 
     if not text:
-        return ChatResponse(
-            message="Tell me what you need help with.",
-        )
+        return ChatResponse(message="Tell me what you need help with.")
 
     if any(word in text for word in ("plan", "schedule", "week", "study")):
         return ChatResponse(
             message=(
-                "I can build your week from the tasks and fixed commitments "
-                "you've added. Use Plan week and I'll place the flexible work "
-                "around everything that cannot move."
+                "I can build your week from your tasks and fixed commitments."
             ),
             action="plan",
         )
 
     if any(word in text for word in ("meet", "meeting", "call")):
         return ChatResponse(
-            message=(
-                "I can find meeting times that fit your availability. "
-                "Open Meetings and choose New meeting to compare three options."
-            ),
+            message="I can find meeting times that fit your availability.",
             action="meeting",
         )
 
     if any(word in text for word in ("task", "assignment", "homework", "due")):
         return ChatResponse(
-            message=(
-                "Add the task with its deadline and estimated time. "
-                "I'll use those details when I build your week."
-            ),
+            message="Tell me the deadline and how long the task should take.",
             action="task",
         )
 
     return ChatResponse(
         message=(
-            "I can help you plan your week, add work, or find a meeting time. "
-            "Tell me what you're trying to get done."
-        ),
+            "I can help plan your week, protect Star Rules, "
+            "or respond when your schedule changes."
+        )
     )
