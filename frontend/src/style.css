@@ -1,18 +1,17 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
 
 :root {
-  font-family:"DM Sans",
-system-ui,
-sans-serif;
-  color:#18211c;
-  background:#f5f6f3;
-  --ink:#18211c;
-  --muted:#778079;
-  --green:#087f8c;
-  --green2:#e4f4f5;
-  --line:#dce5e7;
-  --white:#fff;
-  --nav:#071d2b}
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #18211c;
+  background: #f5f6f3;
+  --ink: #18211c;
+  --muted: #778079;
+  --green: #087f8c;
+  --green2: #e4f4f5;
+  --line: #dce5e7;
+  --white: #ffffff;
+  --nav: #071d2b;
+}
 
 * {
   box-sizing:border-box}
