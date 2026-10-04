@@ -21,3 +21,16 @@ main:not(.auth){background:#eef3f8}.rail{background:#fff;color:#12213a;border-ri
 .tempoMessage.user{background:rgba(31,73,125,.1);margin-left:20px}
 .tempoActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tempoActions .prompt{width:auto;flex:1 1 auto}
+
+/* The original Tempo mark is shared across the app and stays legible in every theme. */
+.tempoLogo{display:block;width:42px;height:42px;flex-shrink:0;object-fit:contain;border-radius:50%;background:#fff}
+.authHero .brand{display:flex;align-items:center;gap:12px}
+.authHero .tempoLogoAuth{width:56px;height:56px}
+.tempoLogoAssistant{width:40px;height:40px}
+.tempoLogoSmall{width:18px;height:18px}
+.tempoAssistantLabel{display:flex;align-items:center;gap:6px}
+.tempoReply .tempoAssistantLabel b{margin:0}
+.tempoLoadingContent{display:flex;flex-direction:column;align-items:center;gap:18px}
+.tempoLogoLoading{width:80px;height:80px}
+@media(max-width:640px){.tempoLogoHeader{width:32px;height:32px}.authHero .tempoLogoAuth{width:48px;height:48px}}
+
