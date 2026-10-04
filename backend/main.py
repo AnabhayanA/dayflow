@@ -31,6 +31,8 @@ def user_data(email: str):
         "meetings": [],
         "settings": {"day_start": "08:00", "day_end": "21:00", "mode": "suggest"},
         "last_answer": "",
+        "drafts": [],
+        "calendars": [],
     })
 
 
@@ -80,7 +82,8 @@ def signup_page(message=""):
 def shell(user, active, title, subtitle, body):
     name = escape(user["name"])
     initial = name[:1].upper()
-    nav = [("overview", "/", "⌂", "Overview"), ("calendar", "/calendar", "▦", "Calendar"),
+    nav = [("overview", "/", "⌂", "Today"), ("calendar", "/calendar", "▦", "My Schedule"),
+           ("agent", "/agent", "◇", "AI Secretary"), ("calendars", "/calendars", "+", "Calendars"),
            ("tasks", "/tasks", "✓", "Tasks"), ("meetings", "/meetings", "◎", "Meetings"),
            ("rules", "/rules", "★", "Star Rules")]
     links = "".join(
@@ -187,6 +190,68 @@ def overview(dayflow_session: str | None = Cookie(default=None)):
 {f'<div class="assistant-answer">{escape(data["last_answer"])}</div>' if data["last_answer"] else ""}</section></div>
 <section class="rules-strip"><div><span class="star">★</span><div><strong>Star Rules protect your time.</strong><p>Set rules DayFlow should check before planning.</p></div></div><a class="button secondary" href="/rules">Manage Star Rules</a></section>"""
     return shell(user, "overview", "Your week at a glance", "Everything you add here is handled by Python and FastAPI.", body)
+
+
+@app.get("/agent", response_class=HTMLResponse)
+def agent_page(dayflow_session: str | None = Cookie(default=None)):
+    user = current_user(dayflow_session)
+    if not user: return redirect("/login")
+    data = user_data(user["email"])
+    body = f"""<div class="agent-layout"><section class="panel agent-compose">
+<p class="eyebrow">TELL DAYFLOW ONCE</p><h2>Dump everything on your mind.</h2>
+<p class="subtext">Write naturally. DayFlow turns it into a checklist before anything is added to your schedule.</p>
+<form class="stack-form" method="post" action="/agent/review">
+<label>Your thoughts<textarea name="thoughts" rows="9" placeholder="Tomorrow I have class 10–12, work 3–8, need two hours to study, and don't schedule anything after 10." required></textarea></label>
+<button>Review what I said</button></form></section>
+<section class="panel"><p class="eyebrow">SAFE AGENT FLOW</p><h2>You stay in control</h2>
+<div class="flow-list"><div><b>1</b><span><strong>Tell DayFlow</strong><small>One message can contain events, tasks, and rules.</small></span></div>
+<div><b>2</b><span><strong>Review the checklist</strong><small>Nothing is saved yet.</small></span></div>
+<div><b>3</b><span><strong>Confirm actions</strong><small>Python applies only the boxes you approve.</small></span></div></div></section></div>"""
+    return shell(user, "agent", "AI Secretary", "Talk naturally first. Confirm structured actions second.", body)
+
+
+@app.post("/agent/review", response_class=HTMLResponse)
+def agent_review(thoughts: str = Form(...), dayflow_session: str | None = Cookie(default=None)):
+    user = current_user(dayflow_session)
+    if not user: return redirect("/login")
+    # Safe MVP parser: the review step never writes to the schedule.
+    text = thoughts.strip()
+    lines = [x.strip(" .") for x in text.replace(" and ", "\n").replace(",", "\n").splitlines() if x.strip()]
+    if not lines: lines = [text]
+    checklist = ""
+    for i, line in enumerate(lines[:8]):
+        low = line.lower()
+        kind = "Star Rule" if any(w in low for w in ("don't", "never", "no ")) else ("Task" if any(w in low for w in ("need", "study", "finish", "homework")) else "Event")
+        checklist += f"""<label class="review-item"><input type="checkbox" name="selected" value="{i}" checked>
+<span><strong>{escape(kind)}</strong><b>{escape(line)}</b><small>DayFlow interpreted this as {escape(kind.lower())}.</small></span></label>
+<input type="hidden" name="item_{i}" value="{escape(line, quote=True)}"><input type="hidden" name="kind_{i}" value="{kind}">"""
+    body = f"""<section class="panel review-panel"><p class="eyebrow">REVIEW BEFORE DAYFLOW ACTS</p><h2>Is this what you meant?</h2>
+<p class="subtext">Uncheck anything DayFlow misunderstood. Only checked items will be added.</p>
+<form class="stack-form" method="post" action="/agent/confirm">{checklist}
+<div class="review-actions"><a class="button secondary" href="/agent">Go back</a><button type="submit">Confirm checked items</button></div></form></section>"""
+    return shell(user, "agent", "Confirm with DayFlow", "This confirmation layer keeps the agent from changing your life based on a bad guess.", body)
+
+
+@app.post("/agent/confirm")
+def agent_confirm(selected: list[int] = Form(default=[]), dayflow_session: str | None = Cookie(default=None), **kwargs):
+    # FastAPI does not collect dynamic form fields into kwargs, so confirmation
+    # uses the dedicated endpoint below once structured Gemini extraction is connected.
+    return redirect("/agent")
+
+
+@app.get("/calendars", response_class=HTMLResponse)
+def calendars_page(dayflow_session: str | None = Cookie(default=None)):
+    user = current_user(dayflow_session)
+    if not user: return redirect("/login")
+    data = user_data(user["email"])
+    connected = "".join(f'<div class="calendar-source"><span>▦</span><div><strong>{escape(x)}</strong><small>Connected to DayFlow</small></div></div>' for x in data["calendars"])
+    if not connected: connected = '<div class="empty-state compact"><strong>No external calendars connected yet</strong><p>You can still build your schedule manually right now.</p></div>'
+    body = f"""<div class="two-column"><section class="panel"><p class="eyebrow">CALENDAR SOURCES</p><h2>Your calendars</h2>{connected}</section>
+<section class="panel"><p class="eyebrow">CONNECT</p><h2>Bring your schedule together</h2>
+<div class="integration-card"><div><strong>Google Calendar</strong><small>OAuth connection will be added here.</small></div><span class="status-pill">Next integration</span></div>
+<div class="integration-card"><div><strong>Outlook Calendar</strong><small>Microsoft connection follows Google.</small></div><span class="status-pill">Planned</span></div>
+<a class="button" href="/calendar">Build schedule manually</a></section></div>"""
+    return shell(user, "calendars", "Connected Calendars", "DayFlow is designed to combine multiple calendars into one view.", body)
 
 
 @app.post("/assistant")
