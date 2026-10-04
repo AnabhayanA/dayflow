@@ -43,7 +43,7 @@ def load_workspace(x_dayflow_key: UUID = Header(...)):
             row = connection.execute(
                 """
                 SELECT state, updated_at
-                FROM dayflow_workspaces
+                FROM tempo_workspaces
                 WHERE key_hash = %s
                 """,
                 (hash_key(x_dayflow_key),),
@@ -69,7 +69,7 @@ def save_workspace(
         with get_connection() as connection:
             row = connection.execute(
                 """
-                INSERT INTO dayflow_workspaces (key_hash, state)
+                INSERT INTO tempo_workspaces (key_hash, state)
                 VALUES (%s, %s)
                 ON CONFLICT (key_hash)
                 DO UPDATE SET
