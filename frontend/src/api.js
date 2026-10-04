@@ -14,8 +14,15 @@ async function request(path, options = {}) {
     },
   });
   if (response.status === 204) return null;
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "DayFlow request failed");
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { detail: raw }; }
+  if (!response.ok) {
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map(x => x.msg || JSON.stringify(x)).join("; ")
+      : data.detail;
+    throw new Error(detail || `DayFlow request failed (HTTP ${response.status})`);
+  }
   return data;
 }
 
