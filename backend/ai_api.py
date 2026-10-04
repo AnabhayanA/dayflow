@@ -138,8 +138,8 @@ def local_fallback(body, events, tasks, user_tz, local_now, user_id):
         }
 
     return {
-        "reply": "Cloud AI is unavailable, but Tempo automation is online. Try “find time for gym this week” or “schedule study tomorrow from 6 PM to 8 PM.”",
-        "suggestions": ["Find time for gym this week", "Add an event"],
+        "reply": "Tempo automation is ready. Tell me what to schedule and include a day/time, or ask me to find an open time.",
+        "suggestions": ["Find time for gym this week", "Schedule study tomorrow from 6 PM to 8 PM"],
         "actions": [], "provider": "local",
     }
 
