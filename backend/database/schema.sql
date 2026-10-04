@@ -1,4 +1,4 @@
--- DayFlow database schema
+-- Tempo database schema
 -- PostgreSQL / TigerData
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -130,14 +130,14 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created
     ON chat_messages(user_id, created_at);
 
 -- Preserve the workspace snapshot API created during the TigerData integration.
-CREATE TABLE IF NOT EXISTS dayflow_workspaces (
+CREATE TABLE IF NOT EXISTS tempo_workspaces (
     key_hash TEXT PRIMARY KEY,
     state JSONB NOT NULL DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 
--- External calendar accounts connected by a DayFlow user.
+-- External calendar accounts connected by a Tempo user.
 CREATE TABLE IF NOT EXISTS calendar_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -157,7 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_calendar_connections_user
     ON calendar_connections(user_id, provider);
 
 
--- DayFlow-to-DayFlow scheduling requests. Invitees expose only availability,
+-- Tempo-to-Tempo scheduling requests. Invitees expose only availability,
 -- never private event titles/details.
 CREATE TABLE IF NOT EXISTS meeting_invites (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
