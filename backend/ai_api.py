@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from backend.auth_api import get_current_user
 from backend.automation import apply_approved_action
+from backend.automation.local_intent import parse_local_intent
+from backend.automation.scheduler import free_windows
 from backend.database.connection import get_connection
 
 router = APIRouter(prefix="/api/ai", tags=["Tempo AI"])
@@ -52,67 +54,66 @@ def line_task(t):
 
 
 def local_fallback(body, events, tasks, user_tz, local_now):
-    message = body.message.strip()
-    low = message.lower()
+    intent = parse_local_intent(body.message, local_now)
 
-    # Deterministic routine follow-ups keep Tempo useful even when the cloud model is rate-limited.
-    routine = re.search(r"(mon|tue|wed|thu|fri|sat|sun)(?:\s*/\s*(mon|tue|wed|thu|fri|sat|sun))*.*?(\d{1,2})(?::(\d{2}))?\s*(am|pm).*?(\d{1,2})(?::(\d{2}))?\s*(am|pm)", low)
-    if "gym" in low and ("routine" in low or "/" in low or "evening" in low or "morning" in low):
+    if intent and intent["kind"] == "create":
+        conflict = next(
+            (e for e in events if e["starts_at"] < intent["end"] and e["ends_at"] > intent["start"]),
+            None,
+        )
+        if conflict:
+            return {
+                "reply": f"That time conflicts with {conflict['title']}.",
+                "suggestions": ["Find another time"],
+                "actions": [],
+                "provider": "local",
+            }
         return {
-            "reply": "I can keep planning locally while the cloud AI limit resets.",
-            "suggestions": ["Mon/Wed/Fri evenings", "Tue/Thu evenings", "Weekday mornings", "Custom"],
-            "actions": [],
+            "reply": f"{intent['title']} fits your current calendar.",
+            "suggestions": [],
+            "actions": [{
+                "type": "create_event", "label": "Confirm and add",
+                "title": intent["title"], "start": intent["start"].isoformat(),
+                "end": intent["end"].isoformat(), "event_type": "Personal",
+            }],
             "provider": "local",
         }
 
-    # Basic direct event creation does not need an LLM.
-    direct = re.search(
-        r"(?:schedule|add|book)\s+(.+?)\s+(today|tomorrow)\s+(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s+(?:to|-)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)",
-        low,
-    )
-    if direct:
-        title = direct.group(1).strip().title()
-        day = local_now.date()
-        if direct.group(2) == "tomorrow":
-            from datetime import timedelta
-            day += timedelta(days=1)
-
-        def clock(hour, minute, meridiem):
-            hour = int(hour)
-            minute = int(minute or 0)
-            if meridiem == "pm" and hour != 12:
-                hour += 12
-            if meridiem == "am" and hour == 12:
-                hour = 0
-            return datetime(day.year, day.month, day.day, hour, minute, tzinfo=user_tz)
-
-        start = clock(direct.group(3), direct.group(4), direct.group(5))
-        end = clock(direct.group(6), direct.group(7), direct.group(8))
-        if end > start:
-            conflict = next((e for e in events if e["starts_at"] < end and e["ends_at"] > start), None)
-            if conflict:
-                return {"reply": f"That time conflicts with {conflict['title']}.", "suggestions": ["Find another time"], "actions": [], "provider": "local"}
-            return {
-                "reply": f"{title} fits without overlapping your current calendar.",
-                "suggestions": [],
-                "actions": [{"type": "create_event", "label": "Add to calendar", "title": title,
-                             "start": start.isoformat(), "end": end.isoformat(), "event_type": "Personal"}],
-                "provider": "local",
-            }
-
-    if "gym" in low and ("find time" in low or "this week" in low):
+    if intent and intent["kind"] == "find_time":
+        start = local_now
+        end = local_now + timedelta(days=7)
+        windows = free_windows(user["id"], start, end, intent["duration"], limit=4)
+        if not windows:
+            return {"reply": "I couldn't find an open block this week.", "suggestions": [], "actions": [], "provider": "local"}
+        choices = [
+            f"{s.strftime('%a %b %d · %I:%M %p')} - {e.strftime('%I:%M %p')}"
+            for s, e in windows
+        ]
+        # Include concrete action metadata for the best slot. User still confirms before execution.
+        best_start, best_end = windows[0]
         return {
-            "reply": "I can plan this without using another cloud request. Pick a routine and I’ll turn it into calendar blocks.",
-            "suggestions": ["Mon/Wed/Fri evenings", "Tue/Thu evenings", "Weekday mornings", "Custom"],
-            "actions": [],
+            "reply": f"Best opening for {intent['title']}: {choices[0]}.",
+            "suggestions": choices[1:],
+            "actions": [{
+                "type": "create_event", "label": "Confirm best time",
+                "title": intent["title"], "start": best_start.isoformat(),
+                "end": best_end.isoformat(), "event_type": "Personal",
+            }],
             "provider": "local",
+        }
+
+    low = body.message.lower()
+    if "gym" in low and ("routine" in low or "this week" in low):
+        return {
+            "reply": "Choose a gym pattern and I’ll fit it around your real calendar.",
+            "suggestions": ["Mon/Wed/Fri evenings", "Tue/Thu evenings", "Weekday mornings", "Custom"],
+            "actions": [], "provider": "local",
         }
 
     return {
-        "reply": "The cloud AI limit is reached, but your calendar automation is still online. I can still add, edit, delete, and sync calendar events.",
-        "suggestions": ["Add an event", "Open my calendar"],
-        "actions": [],
-        "provider": "local",
+        "reply": "Cloud AI is unavailable, but Tempo automation is online. Try “find time for gym this week” or “schedule study tomorrow from 6 PM to 8 PM.”",
+        "suggestions": ["Find time for gym this week", "Add an event"],
+        "actions": [], "provider": "local",
     }
 
 
