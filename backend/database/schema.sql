@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'other' CHECK (mode IN ('student', 'office', 'other')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -107,4 +108,24 @@ CREATE TABLE IF NOT EXISTS schedule_changes (
     before_state JSONB NOT NULL DEFAULT '{}'::jsonb,
     after_state JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- Chat history used by the Gemini assistant.
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created
+    ON chat_messages(user_id, created_at);
+
+-- Preserve the workspace snapshot API created during the TigerData integration.
+CREATE TABLE IF NOT EXISTS dayflow_workspaces (
+    key_hash TEXT PRIMARY KEY,
+    state JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
