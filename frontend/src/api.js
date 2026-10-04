@@ -48,3 +48,4 @@ export const findSharedSlots = body => request("/api/sharing/find-slots", { meth
 export const createSharedMeeting = body => request("/api/sharing/meetings", { method: "POST", body: JSON.stringify(body) });
 export const confirmSharedMeeting = (id, start) => request(`/api/sharing/meetings/${id}/confirm`, { method: "POST", body: JSON.stringify({ start }) });
 export const sharedMeetings = () => request("/api/sharing/meetings");
+export const tempoChat = message => request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message }) });
