@@ -77,7 +77,7 @@ Rules:
 - Use the recent conversation to understand follow-ups like "yes", "second one", "tomorrow instead", and "other times".
 - End with 2 to 4 short tap choices whenever a useful next decision exists.
 - Put each choice on its own final line using exactly: [ACTION] choice text
-- Never put [ACTION] inside the main prose.
+- Never put [ACTION] inside the main prose.\n- When the user has given enough information to create a calendar block, include one final machine-readable line: [CREATE_EVENT] title | ISO-8601 start with timezone offset | ISO-8601 end with timezone offset | event type\n- Only emit CREATE_EVENT when start and end are concrete and do not overlap a supplied fixed event.\n- If details are missing, use ACTION choices instead of inventing them.
 
 RECENT CONVERSATION:
 {chr(10).join(str(m.get("role","user")) + ": " + str(m.get("text","")) for m in body.conversation[-8:]) or "- First message."}
@@ -146,9 +146,7 @@ USER MESSAGE:
     if not answer:
         raise HTTPException(status_code=502, detail="Gemini returned no response")
 
-    suggestions = []
-    reply_lines = []
-    for line in answer.splitlines():
+    suggestions = []\n    actions = []\n    reply_lines = []\n    for line in answer.splitlines():
         stripped = line.strip()
         if stripped.startswith("[ACTION]"):
             value = stripped[8:].strip()
