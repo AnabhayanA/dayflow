@@ -53,7 +53,7 @@ def line_task(t):
     return f"- id={t['id']} | {t['title']} | {t['category']} | priority={t['priority']} | estimate={t['estimated_minutes']} min | deadline={t['deadline']} | {t['flexibility']}"
 
 
-def local_fallback(body, events, tasks, user_tz, local_now):
+def local_fallback(body, events, tasks, user_tz, local_now, user_id):
     intent = parse_local_intent(body.message, local_now)
 
     if intent and intent["kind"] == "create":
@@ -82,7 +82,7 @@ def local_fallback(body, events, tasks, user_tz, local_now):
     if intent and intent["kind"] == "find_time":
         start = local_now
         end = local_now + timedelta(days=7)
-        windows = free_windows(user["id"], start, end, intent["duration"], limit=4)
+        windows = free_windows(user_id, start, end, intent["duration"], limit=4)
         if not windows:
             return {"reply": "I couldn't find an open block this week.", "suggestions": [], "actions": [], "provider": "local"}
         choices = [
@@ -130,7 +130,7 @@ def chat(body: ChatIn, user=Depends(get_current_user)):
     now = now_utc.isoformat()
     local_now_text = local_now.strftime("%A, %B %d, %Y at %I:%M %p")
     if not api_key:
-        return local_fallback(body, events, tasks, user_tz, local_now)
+        return local_fallback(body, events, tasks, user_tz, local_now, user.get("id"))
 
     prompt = f"""You are Tempo, an AI personal secretary and scheduling assistant.
 You are speaking to {user['name']} whose mode is {user['mode']}.
@@ -204,7 +204,7 @@ USER MESSAGE:
                 pass
 
     if response.is_error and response.status_code == 429:
-        return local_fallback(body, events, tasks, user_tz, local_now)
+        return local_fallback(body, events, tasks, user_tz, local_now, user.get("id"))
 
     if response.is_error:
         try:
