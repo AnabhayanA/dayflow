@@ -18,7 +18,7 @@ GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo"
 GOOGLE_API = "https://www.googleapis.com/calendar/v3"
 GOOGLE_EVENTS = GOOGLE_API + "/calendars/primary/events"
-SCOPES = "openid email https://www.googleapis.com/auth/calendar.events"
+SCOPES = "openid email https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly"
 
 
 def setting(name: str) -> str:
@@ -222,9 +222,12 @@ def sync_google_for_user(user_id):
     # Pull every calendar visible in Google Calendar, not only "primary".
     list_response = httpx.get(GOOGLE_API + "/users/me/calendarList", headers=headers, timeout=20)
     if list_response.is_error:
-        raise HTTPException(status_code=502, detail="Google Calendar list sync failed")
-    calendars = list_response.json().get("items", [])
-
+        # Older Tempo connections may only have calendar.events permission.
+        # Primary calendar events are still readable with that scope, so keep
+        # sync working and ask users to reconnect later for all calendars.
+        calendars = [{"id": "primary"}]
+    else:
+        calendars = list_response.json().get("items", [])
     seen = set()
     count = 0
     with get_connection() as connection:
