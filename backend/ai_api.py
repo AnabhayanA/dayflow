@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -5,6 +6,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from psycopg.types.json import Jsonb
 
 from backend.auth_api import get_current_user
 from backend.calendar_api import create_google_event, delete_google_event, update_google_event
@@ -295,7 +297,9 @@ def apply_action(body: ApplyActionIn, user=Depends(get_current_user)):
         connection.execute(
             """INSERT INTO schedule_changes(user_id,reason,explanation,status,before_state,after_state)
                VALUES(%s,%s,%s,'applied',%s,%s)""",
-            (user["id"], reason, "Approved by the user in Tempo.", before, after),
+            (user["id"], reason, "Approved by the user in Tempo.",
+             Jsonb(before, dumps=lambda obj: json.dumps(obj, default=str)),
+             Jsonb(after, dumps=lambda obj: json.dumps(obj, default=str))),
         )
         connection.commit()
 
