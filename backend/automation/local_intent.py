@@ -39,3 +39,40 @@ def parse_local_intent(message, now):
         return {"kind": "find_time", "title": title, "duration": duration}
 
     return None
+
+
+def conversation_topic(conversation):
+    for message in reversed(conversation or []):
+        text = str(message.get("text", "")).lower()
+        if "gym" in text:
+            return "Gym"
+        if "study" in text:
+            return "Study"
+        if "meeting" in text:
+            return "Meeting"
+    return None
+
+
+def parse_routine_choice(message, conversation, now):
+    low = message.lower().strip()
+    topic = conversation_topic(conversation)
+    if not topic:
+        return None
+    patterns = {
+        "mon / wed / fri": (["mon", "wed", "fri"], 18, 0),
+        "mon/wed/fri": (["mon", "wed", "fri"], 18, 0),
+        "mon / wed / fri evenings": (["mon", "wed", "fri"], 18, 0),
+        "mon/wed/fri evenings": (["mon", "wed", "fri"], 18, 0),
+        "tue / thu": (["tue", "thu"], 18, 0),
+        "tue/thu": (["tue", "thu"], 18, 0),
+        "tue / thu evenings": (["tue", "thu"], 18, 0),
+        "tue/thu evenings": (["tue", "thu"], 18, 0),
+        "weekday mornings": (["mon", "tue", "wed", "thu", "fri"], 8, 0),
+    }
+    # Button labels can include a sample time such as "(6:00 PM)".
+    normalized = re.sub(r"\s*\([^)]*\)\s*$", "", low).strip()
+    choice = patterns.get(normalized)
+    if not choice:
+        return None
+    days, hour, minute = choice
+    return {"kind": "routine", "title": topic, "days": days, "hour": hour, "minute": minute, "duration": 60}
