@@ -1,6 +1,7 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from backend.workspace_api import router as workspace_router
 from backend.planner.meetings import propose_meetings
 from backend.planner.scheduler import generate_schedule
 from backend.schema import (
@@ -13,7 +14,7 @@ from backend.schema import (
 )
 
 app = FastAPI(title="DayFlow API", version="0.5.0")
-
+app.include_router(workspace_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState}from"react";
 import{CalendarDays,Check,CheckCircle2,Clock3,LayoutDashboard,LogOut,Menu,Plus,Settings,Star,Trash2,Users,X,ArrowRight,LockKeyhole,Mail,UserRound,CalendarClock,Bell,BriefcaseBusiness,GraduationCap,House,ChevronRight,MessageCircle,Send,PanelRightClose,PanelRightOpen}from"lucide-react";
-const API="http://127.0.0.1:8000",DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const API="",DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},save=(k,v)=>localStorage.setItem(k,JSON.stringify(v)),uid=()=>Date.now()+Math.floor(Math.random()*999);
 const to24=t=>{const[m,p]=t.split(" ");let[h,n]=m.split(":").map(Number);if(p==="PM"&&h!==12)h+=12;if(p==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+String(n).padStart(2,"0")};
 function Modal({title,onClose,children}){return <div className="overlay"><div className="modal"><div className="modalHead"><h2>{title}</h2><button className="iconBtn" onClick={onClose}><X size={18}/></button></div>{children}</div></div>}
