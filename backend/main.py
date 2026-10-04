@@ -175,21 +175,25 @@ def logout(dayflow_session: str | None = Cookie(default=None)):
 @app.get("/", response_class=HTMLResponse)
 def overview(dayflow_session: str | None = Cookie(default=None)):
     user = current_user(dayflow_session)
-    if not user:
-        return redirect("/login")
+    if not user: return redirect("/login")
     data = user_data(user["email"])
-    minutes = sum(int(t["minutes"]) for t in data["tasks"])
-    body = f"""<section class="stats">
-<article><span class="stat-icon">✓</span><div><small>Open tasks</small><strong>{len(data["tasks"])}</strong></div></article>
-<article><span class="stat-icon">◷</span><div><small>Work to place</small><strong>{minutes/60:.1f}h</strong></div></article>
-<article><span class="stat-icon">▦</span><div><small>Fixed blocks</small><strong>{len(data["events"])}</strong></div></article>
-<article><span class="stat-icon">★</span><div><small>Star Rules</small><strong>{len(data["rules"])}</strong></div></article></section>
-<div class="bottom-grid"><section class="panel"><div class="panel-heading"><div><p class="eyebrow">TASKS</p><h2>What needs your attention</h2></div><a class="button secondary" href="/tasks">Add task</a></div>{task_rows(data)}</section>
-<section class="panel assistant-card"><div class="assistant-title"><span>DF</span><div><strong>DayFlow Assistant</strong><small>Tell me what changed.</small></div></div>
-<form method="post" action="/assistant"><label>What do you need help with?</label><textarea name="message" rows="4" placeholder="I work tomorrow 3–8 and need two hours to study." required></textarea><button>Ask DayFlow</button></form>
-{f'<div class="assistant-answer">{escape(data["last_answer"])}</div>' if data["last_answer"] else ""}</section></div>
-<section class="rules-strip"><div><span class="star">★</span><div><strong>Star Rules protect your time.</strong><p>Set rules DayFlow should check before planning.</p></div></div><a class="button secondary" href="/rules">Manage Star Rules</a></section>"""
-    return shell(user, "overview", "Your week at a glance", "Everything you add here is handled by Python and FastAPI.", body)
+    days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    cols = []
+    for day in days:
+        events = [e for e in data["events"] if e["day"] == day]
+        cards = "".join(f'<div class="week-event"><strong>{escape(e["title"])}</strong><small>{escape(e["start"])}–{escape(e["end"])}</small></div>' for e in events)
+        if not cards: cards = '<span class="day-empty">Open</span>'
+        cols.append(f'<div class="routine-day"><header><b>{day[:3]}</b><small>{len(events)} blocks</small></header><div class="routine-space">{cards}</div></div>')
+    week = "".join(cols)
+    answer = f'<div class="change-note"><strong>What changed</strong><p>{escape(data["last_answer"])}</p></div>' if data["last_answer"] else '<div class="change-note"><strong>What changed</strong><p>No schedule changes yet.</p></div>'
+    body = f"""<div class="pace-layout"><aside class="planner-rail"><div><p class="eyebrow light">DAYFLOW</p><h2>A little structure.<br>A lot more breathing room.</h2><p>Your schedule, tasks, and AI secretary in one place.</p></div>
+<div class="rail-section"><small>QUICK ACTIONS</small><a href="/calendar">＋ Add an event</a><a href="/tasks">＋ Add a task</a><a href="/meetings">＋ Add a meeting</a><a href="/rules">★ Add a Star Rule</a></div>
+<form class="rail-agent" method="post" action="/agent/review"><label>Tell DayFlow what's going on</label><textarea name="thoughts" rows="5" placeholder="I work Monday 2–6, have class at 11, and need time to study..." required></textarea><button>Review with DayFlow →</button></form><a class="rail-link" href="/calendars">＋ Connect calendars</a></aside>
+<section class="planner-main"><div class="routine-card"><div class="routine-head"><div><span>▦</span><strong>My week</strong></div><a class="button secondary" href="/calendar">＋ Add block</a></div>
+<div class="routine-grid"><div class="time-gutter"><span>9am</span><span>11am</span><span>1pm</span><span>3pm</span><span>5pm</span><span>7pm</span></div>{week}</div>
+<div class="routine-legend"><span>■ Fixed events</span><span>□ Flexible work</span><small>Your DayFlow week</small></div></div>
+<div class="planner-bottom"><section class="panel"><div class="panel-heading"><h2>Tasks</h2><a class="text-link" href="/tasks">＋ Add task</a></div>{task_rows(data)}</section>{answer}</div></section></div>"""
+    return shell(user, "overview", "Your DayFlow", "Your week stays at the center. DayFlow handles the coordination around it.", body)
 
 
 @app.get("/agent", response_class=HTMLResponse)
