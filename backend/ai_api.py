@@ -10,7 +10,7 @@ from backend.database.connection import get_connection
 
 router = APIRouter(prefix="/api/ai", tags=["Tempo AI"])
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 
 class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
@@ -71,10 +71,13 @@ USER MESSAGE:
     try:
         response = httpx.post(
             GEMINI_URL,
-            params={"key": api_key},
-            json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                  "generationConfig": {"temperature": 0.35, "maxOutputTokens": 700}},
-            timeout=30,
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "model": "gemini-3.8-flash",
+                "input": prompt,
+                "generation_config": {"thinking_level": "low", "temperature": 0.35},
+            },
+            timeout=45,
         )
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="Could not reach Gemini") from None
@@ -84,9 +87,19 @@ USER MESSAGE:
         raise HTTPException(status_code=502, detail=detail)
 
     data = response.json()
-    try:
-        answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError):
-        raise HTTPException(status_code=502, detail="Gemini returned no response") from None
+    answer = data.get("output_text")
+    if not answer:
+        for step in reversed(data.get("steps", [])):
+            if step.get("type") == "model_output":
+                texts = [
+                    part.get("text", "")
+                    for part in step.get("content", [])
+                    if part.get("type") == "text"
+                ]
+                answer = "".join(texts).strip()
+                if answer:
+                    break
+    if not answer:
+        raise HTTPException(status_code=502, detail="Gemini returned no response")
 
-    return {"reply": answer}
+    return {"reply": answer, "interaction_id": data.get("id")}
