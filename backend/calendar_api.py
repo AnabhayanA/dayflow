@@ -1,7 +1,7 @@
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 import jwt
@@ -16,7 +16,8 @@ router = APIRouter(prefix="/api/calendars", tags=["Calendars"])
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo"
-GOOGLE_EVENTS = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+GOOGLE_API = "https://www.googleapis.com/calendar/v3"
+GOOGLE_EVENTS = GOOGLE_API + "/calendars/primary/events"
 SCOPES = "openid email https://www.googleapis.com/auth/calendar.events"
 
 
@@ -215,30 +216,76 @@ def sync_google_for_user(user_id):
     if not row:
         raise HTTPException(status_code=404, detail="Connect Google Calendar first")
     token = valid_google_token(row)
+    headers = {"Authorization": f"Bearer {token}"}
     now = datetime.now(timezone.utc)
-    params = {"timeMin": (now - timedelta(days=30)).isoformat(), "timeMax": (now + timedelta(days=180)).isoformat(),
-              "singleEvents": "true", "orderBy": "startTime", "maxResults": 2500}
-    response = httpx.get(GOOGLE_EVENTS, params=params, headers={"Authorization": f"Bearer {token}"}, timeout=30)
-    if response.is_error:
-        raise HTTPException(status_code=502, detail="Google Calendar sync failed")
+
+    # Pull every calendar visible in Google Calendar, not only "primary".
+    list_response = httpx.get(GOOGLE_API + "/users/me/calendarList", headers=headers, timeout=20)
+    if list_response.is_error:
+        raise HTTPException(status_code=502, detail="Google Calendar list sync failed")
+    calendars = list_response.json().get("items", [])
+
+    seen = set()
     count = 0
     with get_connection() as connection:
-        for item in response.json().get("items", []):
-            start = item.get("start", {}).get("dateTime")
-            end = item.get("end", {}).get("dateTime")
-            if not start or not end:
+        for calendar in calendars:
+            calendar_id = calendar.get("id")
+            if not calendar_id or calendar.get("deleted"):
                 continue
-            external_id = item["id"]
-            connection.execute(
-                """INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
-                   VALUES(%s,%s,'Calendar',%s,%s,'fixed','google',%s)
-                   ON CONFLICT (user_id,source,external_id) WHERE external_id IS NOT NULL
-                   DO UPDATE SET title=EXCLUDED.title,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at""",
-                (user_id, item.get("summary") or "Busy", start, end, external_id),
-            )
-            count += 1
+            page_token = None
+            while True:
+                params = {
+                    "timeMin": (now - timedelta(days=365)).isoformat(),
+                    "timeMax": (now + timedelta(days=365)).isoformat(),
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                    "maxResults": 2500,
+                    "showDeleted": "false",
+                }
+                if page_token:
+                    params["pageToken"] = page_token
+                url = GOOGLE_API + "/calendars/" + quote(calendar_id, safe="") + "/events"
+                response = httpx.get(url, params=params, headers=headers, timeout=30)
+                if response.is_error:
+                    continue
+                payload = response.json()
+                for item in payload.get("items", []):
+                    if item.get("status") == "cancelled":
+                        continue
+                    start_data = item.get("start", {})
+                    end_data = item.get("end", {})
+                    start = start_data.get("dateTime") or start_data.get("date")
+                    end = end_data.get("dateTime") or end_data.get("date")
+                    if not start or not end:
+                        continue
+                    # Calendar ID is part of the external key so identical Google event IDs
+                    # from different calendars cannot collide.
+                    external_id = calendar_id + "::" + item["id"]
+                    seen.add(external_id)
+                    connection.execute(
+                        """INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
+                           VALUES(%s,%s,'Calendar',%s,%s,'fixed','google',%s)
+                           ON CONFLICT (user_id,source,external_id) WHERE external_id IS NOT NULL
+                           DO UPDATE SET title=EXCLUDED.title,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at""",
+                        (user_id, item.get("summary") or "Busy", start, end, external_id),
+                    )
+                    count += 1
+                page_token = payload.get("nextPageToken")
+                if not page_token:
+                    break
+
+        # Remove stale imported Google rows so Tempo reflects events deleted in Google.
+        old_rows = connection.execute(
+            "SELECT id,external_id FROM calendar_events WHERE user_id=%s AND source='google'",
+            (user_id,),
+        ).fetchall()
+        for old in old_rows:
+            # Keep legacy primary-only IDs until they are naturally replaced; remove only
+            # rows using the new calendar-qualified sync format.
+            if "::" in (old["external_id"] or "") and old["external_id"] not in seen:
+                connection.execute("DELETE FROM calendar_events WHERE id=%s", (old["id"],))
         connection.commit()
-    return {"synced": count}
+    return {"synced": count, "calendars": len(calendars)}
 
 
 @router.post("/google/sync")
