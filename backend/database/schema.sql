@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 CREATE INDEX IF NOT EXISTS idx_calendar_events_user_time
     ON calendar_events(user_id, starts_at, ends_at);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_external
+    ON calendar_events(user_id, source, external_id)
+    WHERE external_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
