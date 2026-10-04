@@ -15,6 +15,7 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     timezone: str = Field(default="America/New_York", max_length=100)
+    conversation: list[dict] = Field(default_factory=list)
 
 def compact_schedule(user_id):
     with get_connection() as connection:
@@ -62,7 +63,15 @@ Rules:
 - Do not claim that you created, moved, or deleted anything. This chat endpoint currently advises and proposes; actual changes require explicit user approval through Tempo.
 - For destructive or significant schedule changes, clearly ask for confirmation first.
 - If the user asks for something unrelated to scheduling/productivity, you may answer briefly but steer back to their goal when useful.
-- Keep most answers under 180 words. Use bullets only when they improve clarity.
+- Think through the schedule carefully, but keep the visible response extremely short: normally 1 to 4 sentences.
+- Prefer making a concrete recommendation over explaining your reasoning at length.
+- Use the recent conversation to understand follow-ups like "yes", "second one", "tomorrow instead", and "other times".
+- End with 2 to 4 short tap choices whenever a useful next decision exists.
+- Put each choice on its own final line using exactly: [ACTION] choice text
+- Never put [ACTION] inside the main prose.
+
+RECENT CONVERSATION:
+{chr(10).join(str(m.get("role","user")) + ": " + str(m.get("text","")) for m in body.conversation[-8:]) or "- First message."}
 
 UPCOMING EVENTS:
 {chr(10).join(line_event(e) for e in events) or "- No upcoming events in Tempo."}
@@ -126,4 +135,15 @@ USER MESSAGE:
     if not answer:
         raise HTTPException(status_code=502, detail="Gemini returned no response")
 
-    return {"reply": answer, "interaction_id": data.get("id")}
+    suggestions = []
+    reply_lines = []
+    for line in answer.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[ACTION]"):
+            value = stripped[8:].strip()
+            if value:
+                suggestions.append(value)
+        else:
+            reply_lines.append(line)
+    reply = "\n".join(reply_lines).strip() or answer
+    return {"reply": reply, "suggestions": suggestions[:4], "interaction_id": data.get("id")}
