@@ -100,10 +100,12 @@ USER MESSAGE:
                 "input": prompt,
                 "generation_config": {"thinking_level": "low", "temperature": 0.35},
             },
-            timeout=45,
+            timeout=httpx.Timeout(75.0, connect=15.0),
         )
-    except httpx.RequestError:
-        raise HTTPException(status_code=502, detail="Could not reach Gemini") from None
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gemini took too long to respond. Try again.") from None
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini connection failed: {exc.__class__.__name__}") from None
 
     if response.is_error:
         try:
