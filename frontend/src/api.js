@@ -40,3 +40,11 @@ export const removeTask = id => request(`/api/tasks/${id}`, { method: "DELETE" }
 export const calendarConnections = () => request("/api/calendars");
 export const googleCalendarConnect = () => request("/api/calendars/google/connect");
 export const syncGoogleCalendar = () => request("/api/calendars/google/sync", { method: "POST" });
+
+export const setTaskStatus = (id, completed) => request(`/api/tasks/${id}/status`, { method: "PATCH", body: JSON.stringify({ completed }) });
+export const scheduleChanges = () => request("/api/changes");
+export const searchDayFlowUsers = q => request(`/api/sharing/users?q=${encodeURIComponent(q)}`);
+export const findSharedSlots = body => request("/api/sharing/find-slots", { method: "POST", body: JSON.stringify(body) });
+export const createSharedMeeting = body => request("/api/sharing/meetings", { method: "POST", body: JSON.stringify(body) });
+export const confirmSharedMeeting = (id, start) => request(`/api/sharing/meetings/${id}/confirm`, { method: "POST", body: JSON.stringify({ start }) });
+export const sharedMeetings = () => request("/api/sharing/meetings");
