@@ -146,13 +146,27 @@ USER MESSAGE:
     if not answer:
         raise HTTPException(status_code=502, detail="Gemini returned no response")
 
-    suggestions = []\n    actions = []\n    reply_lines = []\n    for line in answer.splitlines():
+    suggestions = []
+    actions = []
+    reply_lines = []
+    for line in answer.splitlines():
         stripped = line.strip()
         if stripped.startswith("[ACTION]"):
             value = stripped[8:].strip()
             if value:
                 suggestions.append(value)
+        elif stripped.startswith("[CREATE_EVENT]"):
+            parts = [p.strip() for p in stripped[14:].strip().split("|")]
+            if len(parts) >= 3:
+                actions.append({
+                    "type": "create_event",
+                    "label": "Add to calendar",
+                    "title": parts[0],
+                    "start": parts[1],
+                    "end": parts[2],
+                    "event_type": parts[3] if len(parts) > 3 else "Personal",
+                })
         else:
             reply_lines.append(line)
     reply = "\n".join(reply_lines).strip() or answer
-    return {"reply": reply, "suggestions": suggestions[:4], "interaction_id": data.get("id")}
+    return {"reply": reply, "suggestions": suggestions[:4], "actions": actions[:1], "interaction_id": data.get("id")}
