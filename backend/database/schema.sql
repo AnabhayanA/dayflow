@@ -131,3 +131,23 @@ CREATE TABLE IF NOT EXISTS dayflow_workspaces (
     state JSONB NOT NULL DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- External calendar accounts connected by a DayFlow user.
+CREATE TABLE IF NOT EXISTS calendar_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL CHECK (provider IN ('google', 'microsoft')),
+    provider_account_id TEXT,
+    provider_email TEXT,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    token_expires_at TIMESTAMPTZ,
+    scopes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, provider, provider_account_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_connections_user
+    ON calendar_connections(user_id, provider);
