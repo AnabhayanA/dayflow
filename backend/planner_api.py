@@ -127,6 +127,32 @@ def update_task(item_id: UUID, body: TaskIn, user=Depends(get_current_user)):
     return row
 
 
+class TaskStatusIn(BaseModel):
+    completed: bool
+
+
+@router.patch("/tasks/{item_id}/status")
+def set_task_status(item_id: UUID, body: TaskStatusIn, user=Depends(get_current_user)):
+    owned("tasks", item_id, user["id"])
+    with get_connection() as connection:
+        row = connection.execute(
+            "UPDATE tasks SET completed=%s,updated_at=NOW() WHERE id=%s AND user_id=%s RETURNING *",
+            (body.completed, item_id, user["id"]),
+        ).fetchone()
+        connection.commit()
+    return row
+
+
+@router.get("/changes")
+def list_changes(user=Depends(get_current_user)):
+    with get_connection() as connection:
+        return connection.execute(
+            """SELECT id,reason,explanation,status,created_at FROM schedule_changes
+               WHERE user_id=%s ORDER BY created_at DESC LIMIT 20""",
+            (user["id"],),
+        ).fetchall()
+
+
 @router.delete("/tasks/{item_id}", status_code=204)
 def delete_task(item_id: UUID, user=Depends(get_current_user)):
     owned("tasks", item_id, user["id"])
