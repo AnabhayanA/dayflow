@@ -56,6 +56,10 @@ def conversation_topic(conversation):
 def parse_routine_choice(message, conversation, now):
     low = message.lower().strip()
     topic = conversation_topic(conversation)
+    # Routine buttons are currently offered for the gym flow. Do not lose the
+    # intent just because React state/history arrived one request late.
+    if not topic and any(x in low for x in ("mon", "tue", "thu", "weekday", "evening", "morning")):
+        topic = "Gym"
     if not topic:
         return None
     patterns = {
