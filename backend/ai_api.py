@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -51,12 +52,75 @@ def line_event(e):
 def line_task(t):
     return f"- id={t['id']} | {t['title']} | {t['category']} | priority={t['priority']} | estimate={t['estimated_minutes']} min | deadline={t['deadline']} | {t['flexibility']}"
 
+
+def local_fallback(body, events, tasks, user_tz, local_now):
+    message = body.message.strip()
+    low = message.lower()
+
+    # Deterministic routine follow-ups keep Tempo useful even when the cloud model is rate-limited.
+    routine = re.search(r"(mon|tue|wed|thu|fri|sat|sun)(?:\s*/\s*(mon|tue|wed|thu|fri|sat|sun))*.*?(\d{1,2})(?::(\d{2}))?\s*(am|pm).*?(\d{1,2})(?::(\d{2}))?\s*(am|pm)", low)
+    if "gym" in low and ("routine" in low or "/" in low or "evening" in low or "morning" in low):
+        return {
+            "reply": "I can keep planning locally while the cloud AI limit resets.",
+            "suggestions": ["Mon/Wed/Fri evenings", "Tue/Thu evenings", "Weekday mornings", "Custom"],
+            "actions": [],
+            "provider": "local",
+        }
+
+    # Basic direct event creation does not need an LLM.
+    direct = re.search(
+        r"(?:schedule|add|book)\s+(.+?)\s+(today|tomorrow)\s+(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s+(?:to|-)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)",
+        low,
+    )
+    if direct:
+        title = direct.group(1).strip().title()
+        day = local_now.date()
+        if direct.group(2) == "tomorrow":
+            from datetime import timedelta
+            day += timedelta(days=1)
+
+        def clock(hour, minute, meridiem):
+            hour = int(hour)
+            minute = int(minute or 0)
+            if meridiem == "pm" and hour != 12:
+                hour += 12
+            if meridiem == "am" and hour == 12:
+                hour = 0
+            return datetime(day.year, day.month, day.day, hour, minute, tzinfo=user_tz)
+
+        start = clock(direct.group(3), direct.group(4), direct.group(5))
+        end = clock(direct.group(6), direct.group(7), direct.group(8))
+        if end > start:
+            conflict = next((e for e in events if e["starts_at"] < end and e["ends_at"] > start), None)
+            if conflict:
+                return {"reply": f"That time conflicts with {conflict['title']}.", "suggestions": ["Find another time"], "actions": [], "provider": "local"}
+            return {
+                "reply": f"{title} fits without overlapping your current calendar.",
+                "suggestions": [],
+                "actions": [{"type": "create_event", "label": "Add to calendar", "title": title,
+                             "start": start.isoformat(), "end": end.isoformat(), "event_type": "Personal"}],
+                "provider": "local",
+            }
+
+    if "gym" in low and ("find time" in low or "this week" in low):
+        return {
+            "reply": "I can plan this without using another cloud request. Pick a routine and I’ll turn it into calendar blocks.",
+            "suggestions": ["Mon/Wed/Fri evenings", "Tue/Thu evenings", "Weekday mornings", "Custom"],
+            "actions": [],
+            "provider": "local",
+        }
+
+    return {
+        "reply": "The cloud AI limit is reached, but your calendar automation is still online. I can still add, edit, delete, and sync calendar events.",
+        "suggestions": ["Add an event", "Open my calendar"],
+        "actions": [],
+        "provider": "local",
+    }
+
+
 @router.post("/chat")
 def chat(body: ChatIn, user=Depends(get_current_user)):
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
-
     events, tasks = compact_schedule(user["id"])
     now_utc = datetime.now(timezone.utc)
     try:
@@ -66,6 +130,9 @@ def chat(body: ChatIn, user=Depends(get_current_user)):
     local_now = now_utc.astimezone(user_tz)
     now = now_utc.isoformat()
     local_now_text = local_now.strftime("%A, %B %d, %Y at %I:%M %p")
+    if not api_key:
+        return local_fallback(body, events, tasks, user_tz, local_now)
+
     prompt = f"""You are Tempo, an AI personal secretary and scheduling assistant.
 You are speaking to {user['name']} whose mode is {user['mode']}.
 Current UTC time (internal only): {now}
@@ -136,6 +203,9 @@ USER MESSAGE:
                 )
             except httpx.RequestError:
                 pass
+
+    if response.is_error and response.status_code == 429:
+        return local_fallback(body, events, tasks, user_tz, local_now)
 
     if response.is_error:
         try:
