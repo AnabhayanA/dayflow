@@ -118,6 +118,13 @@ def google_callback(code: str, state: str):
                 (user_id, profile["id"], profile.get("email"), access_token, refresh_token, expires_at, token.get("scope")),
             )
         connection.commit()
+
+    # Import the connected calendar immediately so the middle Tempo calendar
+    # is populated as soon as OAuth returns.
+    try:
+        sync_google_for_user(user_id)
+    except Exception:
+        pass
     return RedirectResponse(os.getenv("FRONTEND_URL", "http://127.0.0.1:5173") + "?calendar=connected")
 
 
@@ -146,12 +153,11 @@ def valid_google_token(row):
     return data["access_token"]
 
 
-@router.post("/google/sync")
-def sync_google(user=Depends(get_current_user)):
+def sync_google_for_user(user_id):
     with get_connection() as connection:
         row = connection.execute(
             """SELECT * FROM calendar_connections WHERE user_id=%s AND provider='google'
-               ORDER BY updated_at DESC LIMIT 1""", (user["id"],)
+               ORDER BY updated_at DESC LIMIT 1""", (user_id,)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Connect Google Calendar first")
@@ -174,8 +180,13 @@ def sync_google(user=Depends(get_current_user)):
                 """INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
                    VALUES(%s,%s,'Calendar',%s,%s,'fixed','google',%s)
                    ON CONFLICT DO NOTHING""",
-                (user["id"], item.get("summary") or "Busy", start, end, external_id),
+                (user_id, item.get("summary") or "Busy", start, end, external_id),
             )
             count += 1
         connection.commit()
     return {"synced": count}
+
+
+@router.post("/google/sync")
+def sync_google(user=Depends(get_current_user)):
+    return sync_google_for_user(user["id"])
