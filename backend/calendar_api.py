@@ -153,12 +153,65 @@ def valid_google_token(row):
     return data["access_token"]
 
 
-def sync_google_for_user(user_id):
+def latest_google_connection(user_id):
     with get_connection() as connection:
-        row = connection.execute(
+        return connection.execute(
             """SELECT * FROM calendar_connections WHERE user_id=%s AND provider='google'
                ORDER BY updated_at DESC LIMIT 1""", (user_id,)
         ).fetchone()
+
+
+def create_google_event(user_id, title, start, end):
+    row = latest_google_connection(user_id)
+    if not row:
+        return None
+    token = valid_google_token(row)
+    response = httpx.post(
+        GOOGLE_EVENTS,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"summary": title, "start": {"dateTime": start.isoformat()}, "end": {"dateTime": end.isoformat()}},
+        timeout=20,
+    )
+    if response.is_error:
+        raise HTTPException(status_code=502, detail="Google Calendar could not create the event")
+    return response.json()
+
+
+def update_google_event(user_id, external_id, title, start, end):
+    if not external_id:
+        return
+    row = latest_google_connection(user_id)
+    if not row:
+        return
+    token = valid_google_token(row)
+    response = httpx.patch(
+        f"{GOOGLE_EVENTS}/{external_id}",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"summary": title, "start": {"dateTime": start.isoformat()}, "end": {"dateTime": end.isoformat()}},
+        timeout=20,
+    )
+    if response.is_error:
+        raise HTTPException(status_code=502, detail="Google Calendar could not update the event")
+
+
+def delete_google_event(user_id, external_id):
+    if not external_id:
+        return
+    row = latest_google_connection(user_id)
+    if not row:
+        return
+    token = valid_google_token(row)
+    response = httpx.delete(
+        f"{GOOGLE_EVENTS}/{external_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=20,
+    )
+    if response.status_code not in (200, 204, 404):
+        raise HTTPException(status_code=502, detail="Google Calendar could not delete the event")
+
+
+def sync_google_for_user(user_id):
+    row = latest_google_connection(user_id)
     if not row:
         raise HTTPException(status_code=404, detail="Connect Google Calendar first")
     token = valid_google_token(row)
@@ -179,7 +232,8 @@ def sync_google_for_user(user_id):
             connection.execute(
                 """INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
                    VALUES(%s,%s,'Calendar',%s,%s,'fixed','google',%s)
-                   ON CONFLICT DO NOTHING""",
+                   ON CONFLICT (user_id,source,external_id) WHERE external_id IS NOT NULL
+                   DO UPDATE SET title=EXCLUDED.title,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at""",
                 (user_id, item.get("summary") or "Busy", start, end, external_id),
             )
             count += 1
