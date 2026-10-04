@@ -39,6 +39,7 @@ export async function login(body) {
 export const me = () => request("/auth/me");
 export const events = () => request("/api/events");
 export const createEvent = body => request("/api/events", { method: "POST", body: JSON.stringify(body) });
+export const updateEvent = (id, body) => request(`/api/events/${id}`, { method: "PUT", body: JSON.stringify(body) });
 export const removeEvent = id => request(`/api/events/${id}`, { method: "DELETE" });
 export const tasks = () => request("/api/tasks");
 export const createTask = body => request("/api/tasks", { method: "POST", body: JSON.stringify(body) });
@@ -56,3 +57,5 @@ export const createSharedMeeting = body => request("/api/sharing/meetings", { me
 export const confirmSharedMeeting = (id, start) => request(`/api/sharing/meetings/${id}/confirm`, { method: "POST", body: JSON.stringify({ start }) });
 export const sharedMeetings = () => request("/api/sharing/meetings");
 export const tempoChat = (message, conversation = []) => request("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, conversation, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) });
+
+export const tempoApply = action => request("/api/ai/apply", { method: "POST", body: JSON.stringify(action) });
