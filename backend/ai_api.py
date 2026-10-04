@@ -83,8 +83,27 @@ USER MESSAGE:
         raise HTTPException(status_code=502, detail="Could not reach Gemini") from None
 
     if response.is_error:
-        detail = response.json().get("error", {}).get("message", "Gemini request failed")
-        raise HTTPException(status_code=502, detail=detail)
+        try:
+            error_data = response.json()
+            if isinstance(error_data, dict):
+                error_value = error_data.get("error", error_data)
+                if isinstance(error_value, dict):
+                    detail = error_value.get("message") or str(error_value)
+                else:
+                    detail = str(error_value)
+            elif isinstance(error_data, list):
+                messages = []
+                for item in error_data:
+                    if isinstance(item, dict):
+                        messages.append(str(item.get("message") or item.get("error") or item))
+                    else:
+                        messages.append(str(item))
+                detail = "; ".join(messages)
+            else:
+                detail = str(error_data)
+        except Exception:
+            detail = response.text or "Gemini request failed"
+        raise HTTPException(status_code=502, detail=f"Gemini API: {detail}")
 
     data = response.json()
     answer = data.get("output_text")
