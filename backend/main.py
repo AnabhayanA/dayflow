@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.auth_api import router as auth_router
+from backend.ai_api import router as ai_router
 from backend.calendar_api import router as calendar_router
 from backend.planner_api import router as planner_router
 from backend.sharing_api import router as sharing_router
@@ -21,6 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(ai_router)
 app.include_router(planner_router)
 app.include_router(calendar_router)
 app.include_router(sharing_router)
