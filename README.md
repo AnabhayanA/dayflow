@@ -1,4 +1,4 @@
-# DayFlow
+# Tempo
 
 AI-assisted work, school, life, and meeting planner.
 
