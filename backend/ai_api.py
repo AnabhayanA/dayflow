@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 from backend.auth_api import get_current_user
 from backend.automation import apply_approved_action
-from backend.automation.local_intent import parse_local_intent
+from backend.automation.local_intent import parse_local_intent, parse_routine_choice
 from backend.automation.scheduler import free_windows
+from backend.automation.routines import routine_occurrences
 from backend.database.connection import get_connection
 
 router = APIRouter(prefix="/api/ai", tags=["Tempo AI"])
@@ -55,6 +56,32 @@ def line_task(t):
 
 def local_fallback(body, events, tasks, user_tz, local_now, user_id):
     intent = parse_local_intent(body.message, local_now)
+    routine = parse_routine_choice(body.message, body.conversation, local_now)
+    if routine:
+        occurrences = routine_occurrences(
+            local_now, routine["days"], routine["hour"], routine["minute"], routine["duration"], weeks=1
+        )
+        available = []
+        for start, end in occurrences:
+            clash = next((e for e in events if e["starts_at"] < end and e["ends_at"] > start), None)
+            if not clash:
+                available.append((start, end))
+        if not available:
+            return {
+                "reply": f"I checked your calendar and couldn't fit that {routine['title']} pattern without conflicts.",
+                "suggestions": ["Find other times", "Custom"],
+                "actions": [], "provider": "local",
+            }
+        actions = [{
+            "type": "create_event", "label": f"Add {start.strftime('%a')} {start.strftime('%I:%M %p').lstrip('0')}",
+            "title": routine["title"], "start": start.isoformat(), "end": end.isoformat(), "event_type": "Personal",
+        } for start, end in available]
+        times = ", ".join(start.strftime("%a %I:%M %p").replace(" 0", " ") for start, _ in available)
+        return {
+            "reply": f"{routine['title']} fits at {times}. Confirm the blocks you want added.",
+            "suggestions": [], "actions": actions, "provider": "local",
+        }
+
 
     if intent and intent["kind"] == "create":
         conflict = next(
@@ -274,7 +301,7 @@ USER MESSAGE:
         else:
             reply_lines.append(line)
     reply = "\n".join(reply_lines).strip() or answer
-    return {"reply": reply, "suggestions": suggestions[:4], "actions": actions[:1], "interaction_id": data.get("id")}
+    return {"reply": reply, "suggestions": suggestions[:4], "actions": actions[:6], "interaction_id": data.get("id")}
 
 
 
