@@ -155,3 +155,31 @@ CREATE TABLE IF NOT EXISTS calendar_connections (
 
 CREATE INDEX IF NOT EXISTS idx_calendar_connections_user
     ON calendar_connections(user_id, provider);
+
+
+-- DayFlow-to-DayFlow scheduling requests. Invitees expose only availability,
+-- never private event titles/details.
+CREATE TABLE IF NOT EXISTS meeting_invites (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organizer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    duration_minutes INTEGER NOT NULL CHECK (duration_minutes BETWEEN 15 AND 480),
+    window_start TIMESTAMPTZ NOT NULL,
+    window_end TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL DEFAULT 'finding_time'
+        CHECK (status IN ('finding_time','scheduled','cancelled')),
+    selected_start TIMESTAMPTZ,
+    selected_end TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (window_end > window_start)
+);
+
+CREATE TABLE IF NOT EXISTS meeting_invitees (
+    meeting_id UUID NOT NULL REFERENCES meeting_invites(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'invited'
+        CHECK (status IN ('invited','accepted','declined')),
+    PRIMARY KEY (meeting_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_invitees_user ON meeting_invitees(user_id, status);
