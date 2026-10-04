@@ -108,6 +108,24 @@ USER MESSAGE:
         raise HTTPException(status_code=502, detail=f"Gemini connection failed: {exc.__class__.__name__}") from None
 
     if response.is_error:
+        # Gemini occasionally returns a temporary high-demand response.
+        # Retry once before surfacing it to Tempo.
+        if response.status_code in (429, 503) and ("high demand" in response.text.lower() or "unavailable" in response.text.lower()):
+            try:
+                response = httpx.post(
+                    GEMINI_URL,
+                    headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                    json={
+                        "model": "gemini-3.8-flash",
+                        "input": prompt,
+                        "generation_config": {"thinking_level": "low", "temperature": 0.35},
+                    },
+                    timeout=httpx.Timeout(75.0, connect=15.0),
+                )
+            except httpx.RequestError:
+                pass
+
+    if response.is_error:
         try:
             error_data = response.json()
             if isinstance(error_data, dict):
