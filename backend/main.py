@@ -8,7 +8,7 @@ from backend.planner_api import router as planner_router
 from backend.sharing_api import router as sharing_router
 from backend.workspace_api import router as workspace_router
 
-app = FastAPI(title="DayFlow API", version="1.0.0")
+app = FastAPI(title="Tempo API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,14 +34,14 @@ app.include_router(workspace_router)
 
 @app.get("/")
 def root():
-    return {"message": "DayFlow API is running", "version": "1.0.0"}
+    return {"message": "Tempo API is running", "version": "1.0.0"}
 
 
 @app.get("/api/health")
 def health():
     return {
         "status": "online",
-        "app": "DayFlow",
+        "app": "Tempo",
         "backend": "FastAPI",
         "database": "TigerData/Postgres",
     }
