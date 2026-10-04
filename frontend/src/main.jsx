@@ -1,11 +1,17 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-import App from "./App.jsx";
-import "./style.css";
-
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+import React,{useState}from"react";import{createRoot}from"react-dom/client";import{CalendarDays,Plus,BookOpen,Briefcase,Clock3,Send,Settings,Link2,Star,X}from"lucide-react";import"./styles.css";
+const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const initial={Mon:[],Tue:[],Wed:[],Thu:[],Fri:[],Sat:[],Sun:[]};
+function App(){
+ const [schedule,setSchedule]=useState(initial),[modal,setModal]=useState(null),[thoughts,setThoughts]=useState(""),[review,setReview]=useState([]),[tasks,setTasks]=useState([]),[changed,setChanged]=useState("No schedule changes yet.");
+ const add=(type)=>setModal({type,title:"",day:"Mon",start:"09:00",end:"10:00"});
+ const save=e=>{e.preventDefault();const x={...modal};setSchedule(s=>({...s,[x.day]:[...s[x.day],x]}));setChanged("Added "+x.title+" to "+x.day+".");setModal(null)};
+ const parse=e=>{e.preventDefault();const parts=thoughts.split(/,|\band\b/i).map(x=>x.trim()).filter(Boolean);setReview(parts.map((text,i)=>({id:i,text,checked:true})))};
+ const confirm=()=>{const yes=review.filter(x=>x.checked);setTasks(t=>[...t,...yes.map(x=>x.text)]);setChanged("DayFlow added "+yes.length+" approved item(s) to your planning list.");setReview([]);setThoughts("")};
+ return <main><aside className="rail"><div className="brand"><span>DF</span><b>DayFlow</b></div><div><h1>A little structure.<br/>A lot more breathing room.</h1><p>Your schedule and AI secretary, together.</p></div><div className="quick"><small>QUICK ACTIONS</small><button onClick={()=>add("class")}><BookOpen/>Add a class<Plus/></button><button onClick={()=>add("work")}><Briefcase/>Add a work shift<Plus/></button><button onClick={()=>add("study")}><Clock3/>Make time to study<Plus/></button></div><form className="agent" onSubmit={parse}><label>Tell DayFlow what's going on</label><textarea value={thoughts} onChange={e=>setThoughts(e.target.value)} placeholder="I work Monday 2–6, have class at 11, and need two hours to study..." required/><button className="send">Review with DayFlow <Send/></button></form><a href="http://127.0.0.1:8000/calendars"><Link2/> Connect calendars</a></aside>
+ <section className="content"><div className="top"><div><small>MY WEEK</small><h2>Your schedule</h2></div><div><button className="ghost" onClick={()=>alert("Settings will connect to your FastAPI profile next.")}><Settings/>Settings</button><button className="add" onClick={()=>add("event")}><Plus/>Add block</button></div></div>
+ <section className="calendar"><header><div><CalendarDays/><b>Weekly routine</b></div><span>DayFlow planner</span></header><div className="week"><div className="times">{["9am","11am","1pm","3pm","5pm","7pm"].map(x=><span key={x}>{x}</span>)}</div>{days.map(day=><div className="day" key={day}><div className="dayhead"><b>{day}</b><small>{schedule[day].length?schedule[day].length+" blocks":"—"}</small></div><div className="slots">{schedule[day].map((e,i)=><article className={"event "+e.type} key={i}><b>{e.title}</b><span>{e.start}–{e.end}</span></article>)}</div></div>)}</div><footer><span>▣ Classes</span><span>▣ Work</span><span>▣ Study</span><small>A routine that leaves space</small></footer></section>
+ <div className="bottom"><section className="card"><div><h3>Planning list</h3><button onClick={()=>{const t=prompt("Task name");if(t)setTasks(x=>[...x,t])}}>+ Add task</button></div>{tasks.length?tasks.map((t,i)=><p key={i}>✓ {t}</p>):<p>Add flexible work here or tell DayFlow about it.</p>}</section><section className="change"><Star/><div><h3>What changed</h3><p>{changed}</p></div></section></div></section>
+ {modal&&<div className="overlay"><form className="modal" onSubmit={save}><button type="button" className="close" onClick={()=>setModal(null)}><X/></button><h2>Add {modal.type}</h2><label>Title<input value={modal.title} onChange={e=>setModal({...modal,title:e.target.value})} required/></label><label>Day<select value={modal.day} onChange={e=>setModal({...modal,day:e.target.value})}>{days.map(d=><option key={d}>{d}</option>)}</select></label><div className="row"><label>Start<input type="time" value={modal.start} onChange={e=>setModal({...modal,start:e.target.value})}/></label><label>End<input type="time" value={modal.end} onChange={e=>setModal({...modal,end:e.target.value})}/></label></div><button className="send">Add to schedule</button></form></div>}
+ {review.length>0&&<div className="overlay"><section className="modal review"><button className="close" onClick={()=>setReview([])}><X/></button><small>REVIEW BEFORE DAYFLOW ACTS</small><h2>Is this what you meant?</h2><p>Only checked items will be added.</p>{review.map((x,i)=><label className="check" key={x.id}><input type="checkbox" checked={x.checked} onChange={()=>setReview(r=>r.map((a,j)=>j===i?{...a,checked:!a.checked}:a))}/><span>{x.text}</span></label>)}<button className="send" onClick={confirm}>Confirm checked items</button></section></div>}
+ </main>
+}createRoot(document.getElementById("root")).render(<App/>);

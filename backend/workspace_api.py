@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from psycopg.types.json import Jsonb
 
-from backend.database import get_connection
+from backend.workspace_database import get_connection
 from backend.schema import FixedBlock, ScheduleBlock, Task
 
 router = APIRouter(prefix="/api", tags=["Workspace"])
@@ -37,9 +37,7 @@ def hash_key(key: UUID) -> str:
 
 
 @router.get("/workspace")
-def load_workspace(
-    x_dayflow_key: UUID = Header(...),
-):
+def load_workspace(x_dayflow_key: UUID = Header(...)):
     try:
         with get_connection() as connection:
             row = connection.execute(
@@ -59,7 +57,6 @@ def load_workspace(
 
     if row is None:
         return {"state": None, "updated_at": None}
-
     return {"state": row[0], "updated_at": row[1]}
 
 
@@ -91,5 +88,5 @@ def save_workspace(
             status_code=503,
             detail="Database unavailable. Your changes were not saved.",
         ) from None
-
     return {"saved": True, "updated_at": row[0]}
+
