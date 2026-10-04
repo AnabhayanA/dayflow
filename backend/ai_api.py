@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from datetime import datetime, timezone
@@ -7,10 +6,9 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from psycopg.types.json import Jsonb
 
 from backend.auth_api import get_current_user
-from backend.calendar_api import create_google_event, delete_google_event, update_google_event
+from backend.automation import apply_approved_action
 from backend.database.connection import get_connection
 
 router = APIRouter(prefix="/api/ai", tags=["Tempo AI"])
@@ -279,98 +277,6 @@ USER MESSAGE:
 
 
 
-def _event_for_user(connection, event_id, user_id):
-    row = connection.execute(
-        "SELECT * FROM calendar_events WHERE id=%s AND user_id=%s", (event_id, user_id)
-    ).fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Calendar event not found")
-    return row
-
-
-def _conflict(connection, user_id, start, end, exclude_id=None):
-    sql = """SELECT id,title,starts_at,ends_at FROM calendar_events
-             WHERE user_id=%s AND flexibility='fixed' AND starts_at < %s AND ends_at > %s"""
-    args = [user_id, end, start]
-    if exclude_id:
-        sql += " AND id <> %s"
-        args.append(exclude_id)
-    return connection.execute(sql + " ORDER BY starts_at LIMIT 1", args).fetchone()
-
-
 @router.post("/apply")
 def apply_action(body: ApplyActionIn, user=Depends(get_current_user)):
-    if body.type not in {"create_event", "update_event", "delete_event"}:
-        raise HTTPException(status_code=400, detail="Unsupported Tempo action")
-
-    if body.type in {"create_event", "update_event"}:
-        if not body.title or not body.start or not body.end:
-            raise HTTPException(status_code=400, detail="Tempo action is missing event details")
-        if body.end <= body.start:
-            raise HTTPException(status_code=400, detail="Event end must be after start")
-
-    before = {}
-    after = {}
-    with get_connection() as connection:
-        if body.type == "create_event":
-            clash = _conflict(connection, user["id"], body.start, body.end)
-            if clash:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"That time now conflicts with {clash['title']}. Ask Tempo for another time."
-                )
-            google_event = create_google_event(user["id"], body.title, body.start, body.end)
-            source = "google" if google_event else "dayflow"
-            external_id = google_event.get("id") if google_event else None
-            row = connection.execute(
-                """INSERT INTO calendar_events
-                   (user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
-                   VALUES(%s,%s,%s,%s,%s,'fixed',%s,%s) RETURNING *""",
-                (user["id"], body.title, body.event_type, body.start, body.end, source, external_id),
-            ).fetchone()
-            after = dict(row)
-            reason = f"Tempo created {body.title}"
-
-        elif body.type == "update_event":
-            if not body.event_id:
-                raise HTTPException(status_code=400, detail="Tempo action is missing the event ID")
-            existing = _event_for_user(connection, body.event_id, user["id"])
-            clash = _conflict(connection, user["id"], body.start, body.end, body.event_id)
-            if clash:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"That move now conflicts with {clash['title']}. Ask Tempo for another time."
-                )
-            before = dict(existing)
-            if existing["source"] == "google":
-                update_google_event(user["id"], existing["external_id"], body.title, body.start, body.end)
-            row = connection.execute(
-                """UPDATE calendar_events SET title=%s,event_type=%s,starts_at=%s,ends_at=%s
-                   WHERE id=%s AND user_id=%s RETURNING *""",
-                (body.title, body.event_type, body.start, body.end, body.event_id, user["id"]),
-            ).fetchone()
-            after = dict(row)
-            reason = f"Tempo moved {body.title}"
-
-        else:
-            if not body.event_id:
-                raise HTTPException(status_code=400, detail="Tempo action is missing the event ID")
-            existing = _event_for_user(connection, body.event_id, user["id"])
-            before = dict(existing)
-            if existing["source"] == "google":
-                delete_google_event(user["id"], existing["external_id"])
-            connection.execute(
-                "DELETE FROM calendar_events WHERE id=%s AND user_id=%s", (body.event_id, user["id"])
-            )
-            reason = f"Tempo deleted {existing['title']}"
-
-        connection.execute(
-            """INSERT INTO schedule_changes(user_id,reason,explanation,status,before_state,after_state)
-               VALUES(%s,%s,%s,'applied',%s,%s)""",
-            (user["id"], reason, "Approved by the user in Tempo.",
-             Jsonb(before, dumps=lambda obj: json.dumps(obj, default=str)),
-             Jsonb(after, dumps=lambda obj: json.dumps(obj, default=str))),
-        )
-        connection.commit()
-
-    return {"ok": True, "action": body.type, "event": after or before}
+    return apply_approved_action(user["id"], body)
