@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.auth_api import get_current_user
+from backend.calendar_api import create_google_event, delete_google_event, update_google_event
 from backend.database.connection import get_connection
 
 router = APIRouter(prefix="/api", tags=["Planner"])
@@ -51,14 +52,17 @@ def list_events(user=Depends(get_current_user)):
 def create_event(body: EventIn, user=Depends(get_current_user)):
     if body.end <= body.start:
         raise HTTPException(status_code=400, detail="Event end must be after start")
+    google_event = create_google_event(user["id"], body.title, body.start, body.end)
+    source = "google" if google_event else "dayflow"
+    external_id = google_event.get("id") if google_event else None
     with get_connection() as connection:
         row = connection.execute(
             """
-            INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility)
-            VALUES(%s,%s,%s,%s,%s,%s)
+            INSERT INTO calendar_events(user_id,title,event_type,starts_at,ends_at,flexibility,source,external_id)
+            VALUES(%s,%s,%s,%s,%s,%s,%s,%s)
             RETURNING *
             """,
-            (user["id"], body.title, body.event_type, body.start, body.end, body.flexibility),
+            (user["id"], body.title, body.event_type, body.start, body.end, body.flexibility, source, external_id),
         ).fetchone()
         connection.commit()
     return row
@@ -66,9 +70,11 @@ def create_event(body: EventIn, user=Depends(get_current_user)):
 
 @router.put("/events/{item_id}")
 def update_event(item_id: UUID, body: EventIn, user=Depends(get_current_user)):
-    owned("calendar_events", item_id, user["id"])
+    existing = owned("calendar_events", item_id, user["id"])
     if body.end <= body.start:
         raise HTTPException(status_code=400, detail="Event end must be after start")
+    if existing["source"] == "google":
+        update_google_event(user["id"], existing["external_id"], body.title, body.start, body.end)
     with get_connection() as connection:
         row = connection.execute(
             """
@@ -83,7 +89,9 @@ def update_event(item_id: UUID, body: EventIn, user=Depends(get_current_user)):
 
 @router.delete("/events/{item_id}", status_code=204)
 def delete_event(item_id: UUID, user=Depends(get_current_user)):
-    owned("calendar_events", item_id, user["id"])
+    existing = owned("calendar_events", item_id, user["id"])
+    if existing["source"] == "google":
+        delete_google_event(user["id"], existing["external_id"])
     with get_connection() as connection:
         connection.execute("DELETE FROM calendar_events WHERE id=%s AND user_id=%s", (item_id, user["id"]))
         connection.commit()
