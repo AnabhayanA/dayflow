@@ -36,3 +36,7 @@ export const removeEvent = id => request(`/api/events/${id}`, { method: "DELETE"
 export const tasks = () => request("/api/tasks");
 export const createTask = body => request("/api/tasks", { method: "POST", body: JSON.stringify(body) });
 export const removeTask = id => request(`/api/tasks/${id}`, { method: "DELETE" });
+
+export const calendarConnections = () => request("/api/calendars");
+export const googleCalendarConnect = () => request("/api/calendars/google/connect");
+export const syncGoogleCalendar = () => request("/api/calendars/google/sync", { method: "POST" });
